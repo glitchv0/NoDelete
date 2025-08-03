@@ -1,0 +1,8 @@
+## Interface: 50500
+## Title: No Delete
+## Notes: Protect items from accidental deletion or selling by marking them as locked
+## Author: GlitchV0
+## Version: 1.0
+## SavedVariables: NoDeleteDB
+
+NoDelete.lua
