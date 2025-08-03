@@ -8,17 +8,21 @@ NoDelete is a lightweight World of Warcraft Classic addon that prevents you from
 
 ### Main Protection Interface
 
-![NoDelete Main Window](https://media.forgecdn.net/attachments/thumbnails/1276/335/310/172/nodelete-ui-png.PNG) _The main NoDelete interface showing protected and unprotected items with quality color coding_
+![NoDelete Main Window](https://media.forgecdn.net/attachments/thumbnails/1276/335/310/172/nodelete-ui-png.PNG) 
+_The main NoDelete interface showing protected and unprotected items with quality color coding_
 
 ### Protection Popups in Action
 
-![Sale Protection Popup](https://media.forgecdn.net/attachments/thumbnails/1276/329/310/172/vendor-jpg.jpg) _Warning popup when attempting to sell a protected item_
+![Sale Protection Popup](https://media.forgecdn.net/attachments/thumbnails/1276/329/310/172/vendor-jpg.jpg) 
+_Warning popup when attempting to sell a protected item_
 
-![Delete Protection Popup](https://media.forgecdn.net/attachments/thumbnails/1276/334/310/172/nodelete-popup-jpg.jpg) _Warning popup when attempting to delete a protected item_
+![Delete Protection Popup](https://media.forgecdn.net/attachments/thumbnails/1276/334/310/172/nodelete-popup-jpg.jpg) 
+_Warning popup when attempting to delete a protected item_
 
 ### Tooltip Protection Indicator
 
-![Protected Item Tooltip](https://media.forgecdn.net/attachments/thumbnails/1276/328/310/172/tooltip-jpg.jpg) _Protected items display clear indicators in their tooltips_
+![Protected Item Tooltip](https://media.forgecdn.net/attachments/thumbnails/1276/328/310/172/tooltip-jpg.jpg) 
+_Protected items display clear indicators in their tooltips_
 
 ### Quick Toggle Feature
 
