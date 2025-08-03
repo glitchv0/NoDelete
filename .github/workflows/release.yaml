@@ -1,0 +1,154 @@
+name: Create Release
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install semantic-release
+      run: |
+        npm install -g semantic-release
+        npm install -g @semantic-release/changelog
+        npm install -g @semantic-release/git
+        npm install -g @semantic-release/github
+
+    - name: Get next version
+      id: version
+      run: |
+        # Create a basic package.json if it doesn't exist
+        if [ ! -f package.json ]; then
+          echo '{"name": "nodelete", "version": "1.0.0", "repository": {"type": "git", "url": "https://github.com/${{ github.repository }}.git"}}' > package.json
+        fi
+        
+        # Run semantic-release to get next version (dry-run)
+        npx semantic-release --dry-run --no-ci > semantic-output.txt 2>&1 || true
+        
+        # Extract version from output
+        NEXT_VERSION=$(grep -oP 'The next release version is \K[0-9]+\.[0-9]+\.[0-9]+' semantic-output.txt || echo "")
+        
+        if [ -z "$NEXT_VERSION" ]; then
+          # Fallback: get current version and increment patch
+          CURRENT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.0")
+          IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
+          MAJOR=${VERSION_PARTS[0]}
+          MINOR=${VERSION_PARTS[1]}
+          PATCH=${VERSION_PARTS[2]}
+          NEXT_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+        fi
+        
+        echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+        echo "Next version will be: $NEXT_VERSION"
+
+    - name: Update addon version files
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        
+        # Update .toc file version if it exists
+        if [ -f "NoDelete.toc" ]; then
+          sed -i "s/## Version: .*/## Version: $VERSION/" NoDelete.toc
+        fi
+        
+        # Update any Lua version constants if they exist
+        find . -name "*.lua" -exec sed -i "s/local ADDON_VERSION = .*/local ADDON_VERSION = \"$VERSION\"/" {} \;
+
+    - name: Create addon zip
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        
+        # Create a clean directory for the addon
+        mkdir -p NoDelete-$VERSION/NoDelete
+        
+        # Copy addon files (exclude git files, workflows, etc.)
+        rsync -av --exclude='.git*' --exclude='.github' --exclude='node_modules' --exclude='*.zip' --exclude='semantic-output.txt' --exclude='package*.json' . NoDelete-$VERSION/NoDelete/
+        
+        # Create the zip file
+        cd NoDelete-$VERSION
+        zip -r ../NoDelete-$VERSION.zip NoDelete/
+        cd ..
+        
+        echo "Created NoDelete-$VERSION.zip"
+        ls -la NoDelete-$VERSION.zip
+
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Get commits since last tag
+        LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        
+        if [ -n "$LAST_TAG" ]; then
+          CHANGELOG=$(git log $LAST_TAG..HEAD --pretty=format:"- %s" --no-merges)
+        else
+          CHANGELOG=$(git log --pretty=format:"- %s" --no-merges -10)
+        fi
+        
+        if [ -z "$CHANGELOG" ]; then
+          CHANGELOG="- Initial release"
+        fi
+        
+        # Save changelog to file and output
+        echo "$CHANGELOG" > changelog.txt
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGELOG" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ steps.version.outputs.version }}
+        name: NoDelete v${{ steps.version.outputs.version }}
+        body: |
+          ## NoDelete v${{ steps.version.outputs.version }}
+          
+          ### Changes
+          ${{ steps.changelog.outputs.changelog }}
+          
+          ### Installation
+          1. Download the `NoDelete-${{ steps.version.outputs.version }}.zip` file below
+          2. Extract it to your `World of Warcraft/_classic_/Interface/AddOns/` directory
+          3. Restart WoW or type `/reload`
+          4. Type `/nodelete` to start protecting your items!
+          
+          ### What's Protected
+          - ✅ Accidental deletion
+          - ✅ Vendor sales
+          - ✅ Auto-buyback if sold
+          - ✅ Works with all major bag addons
+        files: |
+          NoDelete-${{ steps.version.outputs.version }}.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Commit version updates
+      if: github.event_name == 'push'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        # Only commit if there are changes
+        if git diff --quiet; then
+          echo "No version files to update"
+        else
+          git add -A
+          git commit -m "chore: update version to ${{ steps.version.outputs.version }} [skip ci]" || echo "Nothing to commit"
+          git push || echo "Nothing to push"
+        fi
