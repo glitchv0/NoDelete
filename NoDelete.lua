@@ -324,18 +324,6 @@ function NoDelete:RefreshItemList()
         button.icon:SetPoint("LEFT", 4, 0)
         button.icon:SetTexture(item.texture)
         
-        -- Quality border for icon
-        local r, g, b = GetItemQualityColor(item.quality)
-        button.iconBorder = button:CreateTexture(nil, "OVERLAY")
-        button.iconBorder:SetSize(28, 28)
-        button.iconBorder:SetPoint("CENTER", button.icon, "CENTER")
-        button.iconBorder:SetTexture("Interface\\Tooltips\\UI-Tooltip-Border")
-        button.iconBorder:SetVertexColor(r, g, b, 1)
-        
-        -- Red border for locked items in UI
-        if item.isLocked then
-            button.iconBorder:SetVertexColor(1, 0, 0, 1)
-        end
         
         -- Item name with stack count
         local nameText = item.itemName
@@ -347,6 +335,7 @@ function NoDelete:RefreshItemList()
         button.text:SetPoint("RIGHT", -100, 0)
         button.text:SetJustifyH("LEFT")
         button.text:SetText(nameText)
+        local r, g, b = GetItemQualityColor(item.quality)
         button.text:SetTextColor(r, g, b)
         
         -- Checkbox
@@ -363,11 +352,8 @@ function NoDelete:RefreshItemList()
             local isChecked = self:GetChecked()
             if isChecked then
                 NoDelete:LockItemByID(button.itemData.itemID, button.itemData.itemName)
-                button.iconBorder:SetVertexColor(1, 0, 0, 1)
             else
                 NoDelete:UnlockItemByID(button.itemData.itemID, button.itemData.itemName)
-                local r, g, b = GetItemQualityColor(button.itemData.quality)
-                button.iconBorder:SetVertexColor(r, g, b, 1)
             end
         end)
         
