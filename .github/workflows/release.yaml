@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [ main ]
 
+# Add permissions for the workflow
+permissions:
+  contents: write
+  pull-requests: read
+  packages: write
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -16,38 +22,32 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-        token: ${{ secrets.GITHUB_TOKEN }}
+        # Remove the token parameter - it's not needed and can cause issues
+        # token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
 
-    - name: Install semantic-release
-      run: |
-        npm install -g semantic-release
-        npm install -g @semantic-release/changelog
-        npm install -g @semantic-release/git
-        npm install -g @semantic-release/github
-
+    # Simplify version detection - avoid complex semantic-release setup
     - name: Get next version
       id: version
       run: |
-        # Create a basic package.json if it doesn't exist
-        if [ ! -f package.json ]; then
-          echo '{"name": "nodelete", "version": "1.0.0", "repository": {"type": "git", "url": "https://github.com/${{ github.repository }}.git"}}' > package.json
-        fi
+        # Get the last tag or default to 1.0.0
+        LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.0")
+        echo "Last tag: $LAST_TAG"
         
-        # Run semantic-release to get next version (dry-run)
-        npx semantic-release --dry-run --no-ci > semantic-output.txt 2>&1 || true
-        
-        # Extract version from output
-        NEXT_VERSION=$(grep -oP 'The next release version is \K[0-9]+\.[0-9]+\.[0-9]+' semantic-output.txt || echo "")
-        
-        if [ -z "$NEXT_VERSION" ]; then
-          # Fallback: get current version and increment patch
-          CURRENT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.0")
-          IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
+        # Simple version increment based on commit messages
+        if git log --oneline $(git describe --tags --abbrev=0 2>/dev/null || echo "HEAD~10")..HEAD | grep -q "feat\|BREAKING"; then
+          # Has features or breaking changes, increment minor
+          IFS='.' read -ra VERSION_PARTS <<< "$LAST_TAG"
+          MAJOR=${VERSION_PARTS[0]}
+          MINOR=${VERSION_PARTS[1]}
+          NEXT_VERSION="$MAJOR.$((MINOR + 1)).0"
+        else
+          # Just bug fixes, increment patch
+          IFS='.' read -ra VERSION_PARTS <<< "$LAST_TAG"
           MAJOR=${VERSION_PARTS[0]}
           MINOR=${VERSION_PARTS[1]}
           PATCH=${VERSION_PARTS[2]}
@@ -74,18 +74,18 @@ jobs:
         VERSION="${{ steps.version.outputs.version }}"
         
         # Create a clean directory for the addon
-        mkdir -p NoDelete-$VERSION/NoDelete
+        mkdir -p "NoDelete-$VERSION/NoDelete"
         
         # Copy addon files (exclude git files, workflows, etc.)
-        rsync -av --exclude='.git*' --exclude='.github' --exclude='node_modules' --exclude='*.zip' --exclude='semantic-output.txt' --exclude='package*.json' . NoDelete-$VERSION/NoDelete/
+        rsync -av --exclude='.git*' --exclude='.github' --exclude='node_modules' --exclude='*.zip' --exclude='semantic-output.txt' --exclude='package*.json' . "NoDelete-$VERSION/NoDelete/"
         
         # Create the zip file
-        cd NoDelete-$VERSION
-        zip -r ../NoDelete-$VERSION.zip NoDelete/
+        cd "NoDelete-$VERSION"
+        zip -r "../NoDelete-$VERSION.zip" NoDelete/
         cd ..
         
         echo "Created NoDelete-$VERSION.zip"
-        ls -la NoDelete-$VERSION.zip
+        ls -la "NoDelete-$VERSION.zip"
 
     - name: Generate changelog
       id: changelog
@@ -103,14 +103,15 @@ jobs:
           CHANGELOG="- Initial release"
         fi
         
-        # Save changelog to file and output
-        echo "$CHANGELOG" > changelog.txt
-        echo "changelog<<EOF" >> $GITHUB_OUTPUT
-        echo "$CHANGELOG" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+        # Use proper multiline output format
+        {
+          echo "changelog<<EOF"
+          echo "$CHANGELOG"
+          echo "EOF"
+        } >> $GITHUB_OUTPUT
 
     - name: Create Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ steps.version.outputs.version }}
         name: NoDelete v${{ steps.version.outputs.version }}
@@ -128,13 +129,14 @@ jobs:
           
           ### What's Protected
           - ✅ Accidental deletion
-          - ✅ Vendor sales
+          - ✅ Vendor sales  
           - ✅ Auto-buyback if sold
           - ✅ Works with all major bag addons
         files: |
           NoDelete-${{ steps.version.outputs.version }}.zip
         draft: false
         prerelease: false
+        generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -145,10 +147,10 @@ jobs:
         git config --local user.name "GitHub Action"
         
         # Only commit if there are changes
-        if git diff --quiet; then
-          echo "No version files to update"
-        else
+        if ! git diff --quiet; then
           git add -A
           git commit -m "chore: update version to ${{ steps.version.outputs.version }} [skip ci]" || echo "Nothing to commit"
           git push || echo "Nothing to push"
+        else
+          echo "No version files to update"
         fi
