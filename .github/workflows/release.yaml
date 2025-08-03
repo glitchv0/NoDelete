@@ -35,23 +35,34 @@ jobs:
       id: version
       run: |
         # Get the last tag or default to 1.0.0
-        LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.0")
-        echo "Last tag: $LAST_TAG"
+        LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        
+        if [ -n "$LAST_TAG" ]; then
+          # Remove 'v' prefix if present
+          LAST_VERSION=$(echo "$LAST_TAG" | sed 's/^v//')
+          echo "Last tag: $LAST_TAG (version: $LAST_VERSION)"
+        else
+          LAST_VERSION="0.0.0"
+          echo "No previous tags found, starting from $LAST_VERSION"
+        fi
         
         # Simple version increment based on commit messages
-        if git log --oneline $(git describe --tags --abbrev=0 2>/dev/null || echo "HEAD~10")..HEAD | grep -q "feat\|BREAKING"; then
+        if [ -n "$LAST_TAG" ] && git log --oneline $LAST_TAG..HEAD | grep -q "feat\|BREAKING"; then
           # Has features or breaking changes, increment minor
-          IFS='.' read -ra VERSION_PARTS <<< "$LAST_TAG"
-          MAJOR=${VERSION_PARTS[0]}
-          MINOR=${VERSION_PARTS[1]}
+          IFS='.' read -ra VERSION_PARTS <<< "$LAST_VERSION"
+          MAJOR=${VERSION_PARTS[0]:-0}
+          MINOR=${VERSION_PARTS[1]:-0}
           NEXT_VERSION="$MAJOR.$((MINOR + 1)).0"
-        else
+        elif [ -n "$LAST_TAG" ]; then
           # Just bug fixes, increment patch
-          IFS='.' read -ra VERSION_PARTS <<< "$LAST_TAG"
-          MAJOR=${VERSION_PARTS[0]}
-          MINOR=${VERSION_PARTS[1]}
-          PATCH=${VERSION_PARTS[2]}
+          IFS='.' read -ra VERSION_PARTS <<< "$LAST_VERSION"
+          MAJOR=${VERSION_PARTS[0]:-0}
+          MINOR=${VERSION_PARTS[1]:-0}
+          PATCH=${VERSION_PARTS[2]:-0}
           NEXT_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+        else
+          # First release
+          NEXT_VERSION="1.0.0"
         fi
         
         echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
