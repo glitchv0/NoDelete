@@ -151,18 +151,3 @@ jobs:
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Commit version updates
-      if: github.event_name == 'push'
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        
-        # Only commit if there are changes
-        if ! git diff --quiet; then
-          git add -A
-          git commit -m "chore: update version to ${{ steps.version.outputs.version }} [skip ci]" || echo "Nothing to commit"
-          git push || echo "Nothing to push"
-        else
-          echo "No version files to update"
-        fi
