@@ -133,8 +133,7 @@ jobs:
           ${{ steps.changelog.outputs.changelog }}
 
           https://legacy.curseforge.com/wow/addons/nodelete
-          
-          
+
           ### Installation
           1. Download the `NoDelete-${{ steps.version.outputs.version }}.zip` file below
           2. Extract it to your `World of Warcraft/_classic_/Interface/AddOns/` directory
